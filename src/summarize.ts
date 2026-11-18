@@ -1,5 +1,23 @@
 import type { Config, Reading, WindowSummary } from './types.ts';
 
+
+// (This implementation currently only enforces the invalid-value rule.)
+function isValidValue(value: number | null, config: Config): value is number {
+  // Rule 1 (Invalid): drop a reading if its value is not a finite number
+  // (e.g. null, NaN, +Infinity, -Infinity).
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return false;
+  }
+
+  // Rule 1 (Invalid): drop a reading if its value is outside validRange.
+  // Bounds are inclusive, so values equal to min/max are valid.
+  if (value < config.validRange.min || value > config.validRange.max) {
+    return false;
+  }
+
+  return true;
+}
+
 /**
  * Tier 1. Clean `readings` (given in arrival order) and summarize each
  * device's accepted readings per window. See "Rules" in the README.
@@ -13,9 +31,14 @@ export function summarize(readings: Reading[], config: Config): WindowSummary[] 
   >();
 
   for (const reading of readings) {
+    // Explicit cleaning step: ignore readings with invalid values.
+    if (!isValidValue(reading.value, config)) {
+      continue;
+    }
+
     const windowStart = Math.floor(reading.ts / config.windowMs) * config.windowMs;
     const key = `${reading.deviceId}\0${windowStart}`;
-    const value = reading.value as number;
+    const value = reading.value;
     const existing = groups.get(key);
 
     if (!existing) {
